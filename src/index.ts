@@ -64,3 +64,19 @@ export { RetargetPlan, bindWorldRotation } from './retarget-plan.js';
 export { retargetPose } from './retarget-pose.js';
 export { bakeRetargetedClip } from './retarget-clip.js';
 export { exportCharacterGlb } from './glb-encoder.js';
+export {
+  DeformedCharacter,
+  DeformedFrame,
+  IDENTITY_TRANSFORM,
+  DEGENERATE_EPSILON,
+  characterTransformToMatrix,
+  validateCharacterTransform,
+  pickTriangle,
+} from './surface.js';
+export type { CharacterTransform, Ray, SurfaceHit } from './surface.js';
+export {
+  AttachmentManager,
+  createAttachment,
+  evaluateAttachment,
+} from './attachments.js';
+export type { SurfaceAttachment, AttachmentPose } from './attachments.js';

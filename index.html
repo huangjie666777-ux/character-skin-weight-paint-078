@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>表面挂件演示</title>
+    <style>
+      body { margin: 0; overflow: hidden; font-family: system-ui, sans-serif; }
+      canvas { display: block; }
+      #ui {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        background: rgba(16, 20, 28, 0.85);
+        color: #e8edf5;
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        max-width: 420px;
+      }
+      #ui .row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+      #ui button { cursor: pointer; }
+      #time { flex: 1; min-width: 160px; }
+      #json { width: 100%; box-sizing: border-box; font-size: 11px; }
+      #status { margin-top: 6px; color: #ffd34d; min-height: 1.2em; }
+    </style>
+  </head>
+  <body>
+    <div id="ui"></div>
+    <script type="module" src="/web/main.ts"></script>
+  </body>
+</html>

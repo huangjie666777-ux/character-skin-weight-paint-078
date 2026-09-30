@@ -17,6 +17,7 @@ import {
 import {
   humanoidBones,
   rootMotionWalkClip,
+  walkClip,
   IDENTITY_QUAT,
   UNIT_SCALE,
   quatZ,
@@ -37,6 +38,40 @@ const weights: SkinInfluence[][] = [
 ];
 const mesh = { name: 'test-mesh', positions, indices: [0, 1, 2, 0, 3, 1], weights };
 const indices = mesh.indices;
+
+test('骨骼动画平移转 Float32 溢出时拒绝导出', () => {
+  const clip = walkClip();
+  const overflowClip = {
+    ...clip,
+    tracks: clip.tracks.map((track) => track.boneId === 'hips'
+      ? {
+        ...track,
+        translations: [
+          { time: 0, value: [0, 1, 0] as const },
+          { time: 1, value: [1e39, 1, 0] as const },
+        ],
+      }
+      : track),
+  };
+  assert.throws(
+    () => exportCharacterGlb({ skeleton: sk, mesh, clips: [overflowClip] }),
+    /FLOAT32/,
+  );
+  // 合法范围的大平移仍可导出。
+  const bigClip = {
+    ...clip,
+    tracks: clip.tracks.map((track) => track.boneId === 'hips'
+      ? {
+        ...track,
+        translations: [
+          { time: 0, value: [0, 1, 0] as const },
+          { time: 1, value: [1e30, 1, 0] as const },
+        ],
+      }
+      : track),
+  };
+  assert.ok(exportCharacterGlb({ skeleton: sk, mesh, clips: [bigClip] }).byteLength > 0);
+});
 
 function parseGlb(buffer: ArrayBuffer): Promise<any> {
   return new Promise((resolve, reject) => {

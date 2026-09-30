@@ -10,6 +10,9 @@ TypeScript 5.8 + Three.js 0.180 的可复用骨骼动画库：分层混合（基
 - `npm run example:target` — 运行“循环根运动行走 + 手部贴合固定世界目标 + 世界蒙皮”完整示例
 - `npm run example:retarget` — 运行“源片段重定向到异构目标骨架 + 根运动播放 + 世界 IK + 世界蒙皮”完整示例
 - `npm run example:face` — 构建并运行“身体动作 + 微笑/眨眼/口型”，导出 GLB 后用 `GLTFLoader` 回载验证
+- `npm run dev` — 启动表面挂件演示页面（Vite 开发服务器，浏览器打开终端提示的地址）
+- `npm run build:web` — 类型检查并构建演示页面到 `dist-web/`
+- `npm run preview` — 预览构建后的演示页面
 
 ## 数据约定
 
@@ -33,6 +36,10 @@ TypeScript 5.8 + Three.js 0.180 的可复用骨骼动画库：分层混合（基
   - 片段烘焙：`bakeRetargetedClip(plan, sourceClip, { sampleTimes, rootTranslationScale, name })` 按调用方给定的**严格递增**采样时刻烘焙，时刻必须从 0 开始并以源片段时长结束（含两端）；终点按末帧直接采样，不会折回首帧。输出片段时长与源相同，轨道使用目标骨 ID（映射骨旋转轨道 + 根平移轨道，无非根平移/缩放轨道），采样点姿态与逐点 `retargetPose` 完全一致，可直接交给现有 `RootMotionPlayer` 播放根运动。
 - **GLB 导出**（`exportCharacterGlb`）：接收一个单根 `Skeleton`、一个绑定姿态角色空间 `TriangleMesh` 与多个既有 `AnimationClip`，返回内存中的 GLB `ArrayBuffer`。GLB 使用 glTF 2.0、单个内嵌 BIN 缓冲，无外部 `uri` 引用；无需材质、贴图、法线或相机。节点按骨架求值顺序排列，完整保留乱序输入骨骼的父子层级和绑定局部 TRS；`skin.joints`、逆绑定矩阵、`JOINTS_0`/`WEIGHTS_0` 使用相同关节序号。每顶点最多 4 个影响，导出前校验未知骨、负权重、零总权重、非有限顶点/权重和越界三角索引，权重在复制出的四槽数据中归一化，不修改调用方输入。
 - **导出动画语义**：每个输入片段生成同名 glTF animation，导出平移、旋转和缩放三类局部节点通道以及网格节点 `weights` 通道，sampler 均为 `LINEAR`；Three.js 的 `QuaternionKeyframeTrack` 对旋转执行最短弧 SLERP。morph target 写入 `primitive.targets[].POSITION`，顺序不变；名称写入标准 `extras.targetNames`，默认权重写入 mesh `weights`。不同目标的关键帧时刻可不同，导出时在同一 `weights` sampler 中使用这些时刻的并集，并为缺失目标填入其当前默认/端值，保证 Three.js 逐分量线性插值与库内一致。通道关键帧未覆盖 0 或片段时长时自动在首尾延续端值；缺失通道不写入，由 glTF 节点绑定值表达。输入轨道终点保留原末帧，不折回零或首帧。重定向片段中的根位移只作为普通根节点局部平移导出一次，不叠加 `RootMotionPlayer` 的角色世界位移。有限但超出 Float32 范围的坐标或位移会在导出前拒绝，避免写入后变成 `Infinity`。
+- **变形表面**（`DeformedCharacter` / `DeformedFrame`）：一个独立角色实例 = 骨架 + 形变网格 + 世界变换（平移、单位四元数旋转、**正的非均匀缩放**）。`evaluateFrame(worldMatrices, morphWeights?)` 复用“先形变后蒙皮”的 `skinTriangleMesh` 结果，再施加一次本实例世界矩阵得到世界坐标快照；多个实例可共用骨架/网格输入但各自持有独立帧缓存，互不串状态，输入不被修改。显示、拾取与挂件必须共用同一 `DeformedFrame`。
+- **表面拾取**（`pickTriangle(frames, ray)`）：从屏幕点击生成单位方向射线，在若干角色的同一帧变形表面上做 Möller–Trumbore 求交，只命中**正面**三角形（按顶点绕序法向判定），退化面跳过，返回最近的 `{ characterId, triangleIndex, barycentric, distance }`；空白处返回 `null`（不创建挂件）。不使用绑定姿态或包围盒代替命中。
+- **表面挂件**（`SurfaceAttachment` / `evaluateAttachment` / `AttachmentManager`）：挂件只保存角色标识、三角形序号与重心坐标，每帧在同一变形帧上重算世界位置 = 重心插值 + `offset × 世界单位法向`；朝向取变形后三角形**首条边为切向**、**顶点绕序为法向**（X=切向，Z=法向的正交基四元数）。暂停、拖动时间、重新播放都只改变帧输入，挂件始终贴附原三角形，绝不跳到其他面；面退化时 `visible=false`（隐藏并提示），恢复后自动继续。管理器支持添加（`addFromHit`）、选择、删除与偏移调整（`setOffset`）。
+- **挂件导入导出**（`AttachmentManager.exportJSON / importJSON`）：导出 JSON 包含每个相关角色的拓扑校验信息（角色标识、顶点数、完整索引序列）与全部挂件。导入时先完整校验格式标识、版本、角色存在性、顶点数与索引序列一致性、三角形序号越界、重心坐标（三个非负有限数且和为 1）与偏移有限性；**任一失败都抛错并完整保留当前挂件**，全部通过后整体替换。
 
 ## 快速上手
 
@@ -157,6 +164,17 @@ await fs.writeFile('character.glb', Buffer.from(glb));
 
 `examples/retarget.ts` 会复用 `bakeRetargetedClip` 的目标片段导出 GLB，再用 Three.js `GLTFLoader` 解析、`AnimationMixer` 播放，并把加载后的蒙皮矩阵结果与本库 `sampleClip`/`skinVertices` 在同一时刻对比。
 
+## 演示页面
+
+- 运行 `npm run dev` 后打开终端提示的地址（默认 http://localhost:5173/）。页面内置两个独立角色实例（`alpha` 均匀缩放、`beta` 非均匀缩放），各自做行走 + 挥手骨骼动作并循环播放微笑表情，无需外部模型下载。
+- **旋转视角**：鼠标拖动旋转，滚轮缩放。
+- **播放控制**：「暂停/播放」按钮与时间滑块可暂停、拖动时间和重新播放，挂件始终贴附。
+- **放置徽章**：点击运动中的角色表面，在最近正面三角形上放置徽章（黄色圆徽 + 红色切向箭头）；点击空白不创建。
+- **选择/删除/偏移**：点击徽章选中（变绿），用「偏移」滑块沿世界单位法向推拉，「删除选中」移除。
+- **退化演示**：勾选「压塌头部」后头部顶面退化为零面积，附着其上的徽章隐藏并在状态栏提示；取消勾选后自动恢复贴附。
+- **导入导出**：「导出 JSON」把全部挂件（含角色拓扑校验信息）写入文本框；编辑或粘贴后点「导入 JSON」，校验失败会保留当前挂件并在状态栏说明原因。
+- 页面每帧用同一批 `DeformedFrame` 同时驱动网格显示、点击拾取与挂件求值，三者不会看到不同的变形结果。
+
 ## 目录
 
 - `src/types.ts` — 公共类型
@@ -176,4 +194,8 @@ await fs.writeFile('character.glb', Buffer.from(glb));
 - `src/gltf-mesh.ts` — 网格/三角索引/四影响权重校验与 glTF 适配
 - `src/gltf-animation.ts` — 库片段到 glTF 局部 TRS 与 morph weights 通道转换
 - `src/glb-encoder.ts` — 访问器、bufferView、节点、skin、animation 与 GLB 二进制分块编码
+- `src/surface.ts` — 角色世界变换、变形帧求值与射线正面三角形拾取
+- `src/attachments.ts` — 表面挂件求值、管理与 JSON 导入导出（拓扑校验）
 - `src/index.ts` — 统一导出入口
+- `web/rig.ts` — 演示用程序化角色（骨架、盒子网格、行走/挥手/表情片段）
+- `web/main.ts` — 演示页面：双实例渲染、点击拾取、挂件可视化与 UI 联动

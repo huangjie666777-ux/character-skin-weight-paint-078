@@ -1,4 +1,5 @@
 import { sampleKeys, validateClip } from './clip.js';
+import { assertFloat32Finite } from './morph.js';
 import type { PreparedMorphTargets } from './morph.js';
 import type { Skeleton } from './skeleton.js';
 import type { AnimationClip, Keyframe, Quat, Vec3 } from './types.js';
@@ -23,6 +24,7 @@ function expandKeys<T extends readonly number[]>(
   keys: readonly Keyframe<T>[],
   duration: number,
   valueSize: number,
+  what: string,
 ): Pick<GltfAnimationChannel, 'times' | 'values'> {
   const prepend = keys[0].time > 0;
   const append = keys[keys.length - 1].time < duration;
@@ -32,7 +34,12 @@ function expandKeys<T extends readonly number[]>(
   let out = 0;
   const write = (time: number, value: T): void => {
     times[out] = time;
-    for (let i = 0; i < valueSize; i++) values[out * valueSize + i] = value[i];
+    for (let i = 0; i < valueSize; i++) {
+      // 有限但超出 FLOAT32 范围的值（如 1e39 的平移）写入后会变成 Infinity，
+      // 必须在导出前拒绝，避免生成静默损坏的 GLB。
+      assertFloat32Finite(value[i], what);
+      values[out * valueSize + i] = value[i];
+    }
     out++;
   };
   if (prepend) write(0, keys[0].value);
@@ -90,15 +97,18 @@ export function prepareGlbAnimations(
     for (const track of clip.tracks) {
       const node = nodeIndex.get(track.boneId)!;
       if (track.translations && track.translations.length > 0) {
-        const data = expandKeys<Vec3>(track.translations, clip.duration, 3);
+        const data = expandKeys<Vec3>(track.translations, clip.duration, 3,
+          '片段 ' + clip.name + ' 骨骼 ' + track.boneId + ' 平移');
         channels.push({ nodeIndex: node, path: 'translation', ...data });
       }
       if (track.rotations && track.rotations.length > 0) {
-        const data = expandKeys<Quat>(track.rotations, clip.duration, 4);
+        const data = expandKeys<Quat>(track.rotations, clip.duration, 4,
+          '片段 ' + clip.name + ' 骨骼 ' + track.boneId + ' 旋转');
         channels.push({ nodeIndex: node, path: 'rotation', ...data });
       }
       if (track.scales && track.scales.length > 0) {
-        const data = expandKeys<Vec3>(track.scales, clip.duration, 3);
+        const data = expandKeys<Vec3>(track.scales, clip.duration, 3,
+          '片段 ' + clip.name + ' 骨骼 ' + track.boneId + ' 缩放');
         channels.push({ nodeIndex: node, path: 'scale', ...data });
       }
     }

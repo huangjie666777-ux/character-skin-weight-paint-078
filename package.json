@@ -12,6 +12,10 @@
     "example:target": "tsc -p tsconfig.test.json && node dist-test/examples/walk-target.js",
     "example:retarget": "tsc -p tsconfig.test.json && node dist-test/examples/retarget.js",
     "example:face": "tsc -p tsconfig.test.json && node dist-test/examples/face-wave.js"
+    ,
+    "dev": "vite",
+    "build:web": "tsc -p tsconfig.web.json && vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "three": "0.180.0"
